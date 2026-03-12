@@ -1,6 +1,6 @@
-const express = require("express"); //creating the web server using express
-const http = require("http");
-const { Server } = require("socket.io"); //connecting socket.io to the server
+import express from "express"; //imports the Express framework, which is used to create a web server and handle HTTP requests and responses
+import http from "http";
+import { Server } from "socket.io";
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
