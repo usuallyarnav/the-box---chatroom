@@ -1,73 +1,129 @@
-const socket = io() //connect to server
+const socket = io() // connecting to server wia websockets if fails falls to HTTP long polling
 
 let username = prompt("Enter your name")
 
-socket.emit("join", username) // sending event to server that a user has joined
+// Checks for the username
+if (!username || username.trim() === "") {
+    username = "Anonymous"
+}
 
+username = username.trim().slice(0, 20)
+//reduces username
+socket.emit("join", username)
+//this part announces the joining of someone using socket.io
 const chat = document.getElementById("chat")
+// finds the corresponding html element
 const input = document.getElementById("messageInput")
 const typingDiv = document.getElementById("typing")
 
+function time() {
+    return new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+    })
+}  // same as previous commit
 
-function time(){
+//messaging
+function addMessage(data) {
 
-return new Date().toLocaleTimeString([],{  // creates cuttent time object and formats it to a string with hours and minutes
-hour:"2-digit",
-minute:"2-digit"
+    const div = document.createElement("div")
+// creates a division in memory not visible on screen yet
+    if (data.type === "system") {
+        div.className = "system"
+        div.textContent = data.text
+
+    } else {
+
+        div.className = "bubble"
+
+        if (data.user === username) {
+            div.classList.add("userBubble")
+        } else {
+            div.classList.add("otherBubble")
+        }
+
+        // Username
+        const user = document.createElement("b")
+        user.textContent = data.user // using textcontent instead of inner html as we dont know what the user might type
+// this prevents xss attacks or what I was reffering to as "attacks on the message prompt in the earlier convo" 
+        // Line break
+        const br = document.createElement("br")
+
+        // Message text
+        const text = document.createTextNode(data.text)
+
+        // Timestamp
+        const timestamp = document.createElement("span")
+        timestamp.className = "timestamp"
+        timestamp.textContent = time()
+
+        div.appendChild(user)
+        div.appendChild(br)
+        div.appendChild(text)
+        div.appendChild(timestamp)
+    }
+
+    chat.appendChild(div)
+    chat.scrollTop = chat.scrollHeight
+}
+
+function sendMessage() {
+
+    let message = input.value.trim()
+
+    // Prevent empty messages
+    if (message === "") return
+
+    // Limit message length
+    if (message.length > 500) {
+        alert("Message too long (max 500 characters)")
+        return
+    }
+
+    // Send ONLY message text
+    // Server should attach username
+    socket.emit("chat message", {
+        text: message
+    })
+
+    input.value = ""
+}
+
+// Receive messages
+socket.on("chat message", (data) => {
+    addMessage(data)
 })
 
-}
+// System messages 
+socket.on("system message", (msg) => {
 
-function addMessage(data){ //creates and displays messages in the chat UI
-
-const div = document.createElement("div")
-
-if(data.type==="system"){  //Checks if the message is a system message
-
-div.className="system"
-div.innerText=data.text
-
-}else{
-
-div.className="bubble"
-
-if(data.user===username){
-div.classList.add("userBubble")
-}else{
-div.classList.add("otherBubble")
-}
-
-div.innerHTML=`<b>${data.user}</b><br>${data.text}
-<span class="timestamp">${time()}</span>`
-}
-
-chat.appendChild(div) // adds the message div to the chat container
-chat.scrollTop=chat.scrollHeight // auto scroll 
-
-}
-
-function sendMessage(){
-
-const message=input.value // get the message from the input field
-
-if(message==="") return // prevent sending empty messages
-
-socket.emit("chat message",{
-user:username,
-text:message
+    addMessage({
+        type: "system",
+        text: msg
+    })
 })
 
-input.value=""
+// Typing indicator with debounce
+let typingTimeout
 
-}
+input.addEventListener("input", () => {
 
-socket.on("chat message",(data)=>{ //sender receives chat message event from server and displays it in the chat UI
-addMessage(data)
+    clearTimeout(typingTimeout)
+
+    socket.emit("typing")
+
+    typingTimeout = setTimeout(() => {
+        socket.emit("stop typing")
+    }, 800)
+
 })
 
-socket.on("system message",(msg)=>{ //system messages
-
-addMessage({ //treat system messages differently by setting the type to "system"
+// Show typing 
+socket.on("typing", (name) => {
+// like to see that I myself is typing is useless
+    if (name !== username) {
+        typingDiv.innerText = `${name} is typing........`
+    }age({ //treat system messages differently by setting the type to "system"
 type:"system",
 text:msg
 })
@@ -89,4 +145,11 @@ input.addEventListener("keyup",()=>{ //stops typing indicator after user stops t
 setTimeout(()=>{
 socket.emit("stop typing")
 },800)
+})
+
+})
+
+// Hide typing
+socket.on("stop typing", () => {
+    typingDiv.innerText = ""
 })
